@@ -1,0 +1,158 @@
+<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Ore Tutor</title>
+<style>
+:root{--bg:#f6f7f9;--cd:#fff;--tx:#1d2330;--mu:#6b7385;--bd:#dfe3ea;--ac:#2f6fed;--ok:#1f9d55;--wa:#d97706;--er:#d33;color-scheme:light dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151c;--cd:#1c212c;--tx:#e8ebf2;--mu:#98a1b5;--bd:#2c3342;--ac:#6b9bff;--ok:#43c37c;--wa:#f0a03c;--er:#ff6b6b}}
+:root[data-theme="dark"]{--bg:#12151c;--cd:#1c212c;--tx:#e8ebf2;--mu:#98a1b5;--bd:#2c3342;--ac:#6b9bff;--ok:#43c37c;--wa:#f0a03c;--er:#ff6b6b}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:640px;margin:0 auto;padding:12px 12px 40px}
+.tabs{display:flex;gap:6px;margin-bottom:12px}.tabs button{flex:1}
+button,input,select,textarea{font:inherit;color:var(--tx);background:var(--cd);border:1px solid var(--bd);border-radius:8px;padding:8px}
+button{cursor:pointer}button.on,button.pr{background:var(--ac);color:#fff;border-color:var(--ac)}button.dl{color:var(--er)}
+input[type=number]{width:70px}input[type=date]{min-width:0}
+.c{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:10px}
+.r{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.r>.g{flex:1}
+.mu{color:var(--mu);font-size:13px}h2{font-size:16px;margin:16px 0 8px}h3{margin:0 0 4px;font-size:15px}
+.b{padding:8px 10px;border-radius:8px;margin-bottom:10px;font-size:14px}.b.er{background:#d3333322;color:var(--er)}.b.wa{background:#d9770622;color:var(--wa)}.b.ok{background:#1f9d5522;color:var(--ok)}
+.bar{height:8px;background:var(--bd);border-radius:5px;overflow:hidden;margin:4px 0}.bar i{display:block;height:100%;background:var(--ac)}.bar i.f{background:var(--ok)}
+.tag{font-size:12px;padding:2px 7px;border-radius:9px;background:var(--bd)}
+textarea{width:100%;height:90px;font-size:12px}
+</style></head><body><main id="app"></main>
+<script>
+let S,tab='reg',msg='',bk='',user=null;
+const DEF=()=>({classes:[],contract:[],reg:{},ch:{},abs:{},defH:6});S=DEF();
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const pd=s=>new Date(s+'T12:00:00');
+const fmt=s=>pd(s).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'});
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+const uid=()=>'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+let cur=iso(new Date());
+const save=()=>{if(window.cloudSave&&user)window.cloudSave(JSON.stringify(S))};
+function norm(o){const n=Object.assign(DEF(),o);
+ (o.absences||[]).forEach(a=>{let d=pd(a.from),e=pd(a.to),i=0;while(d<=e&&i++<400){n.abs[iso(d)]=a.type;d.setDate(d.getDate()+1)}});
+ if(o.signed)Object.keys(o.signed).forEach(d=>Object.keys(o.signed[d]).forEach(id=>{const c=(o.classes||[]).find(x=>x.id==id),st=c&&c.year>=2&&(o.stages||[]).some(s=>s.cid==id&&s.from<=d&&d<=s.to);n.reg[d]=n.reg[d]||{};n.reg[d][id]={m:st?'s':'a',h:o.signed[d][id]}}));
+ delete n.signed;delete n.stages;delete n.absences;
+ n.classes.forEach(c=>{if(c.sh==null)c.sh=8;});return n}
+const cap=d=>{const p=S.contract.find(p=>p.from<=d&&d<=p.to);return p?+p.max:0};
+const absent=d=>S.abs[d];
+const rg=(c,d)=>(S.reg[d]||{})[c.id]||{};
+const sg=(c,d)=>rg(c,d).h||0,md=(c,d)=>rg(c,d).m||'';
+const used=d=>Object.values(S.reg[d]||{}).reduce((a,x)=>a+x.h,0);
+const oth=(c,d)=>used(d)-sg(c,d);
+const cls=(c,d)=>{if(!c.start||d<c.start)return 0;const o=S.ch[d+'|'+c.id];if(o!==undefined)return o;const w=pd(d).getDay();return w>=1&&w<=5?S.defH:0};
+const tot=(c,st)=>Object.keys(S.reg).reduce((a,d)=>a+((md(c,d)=='s')===st?sg(c,d):0),0);
+const easter=y=>{const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=(h+l-7*m+114)%31+1;return new Date(y,mo-1,da,12)};
+const FX={'01-01':'Capodanno','01-06':'Epifania','04-25':'Festa della Liberazione','05-01':'Festa del lavoro','06-02':'Festa della Repubblica','08-15':'Ferragosto','11-01':'Ognissanti','12-08':'Immacolata','12-25':'Natale','12-26':'Santo Stefano'};
+const hol=d=>{if(FX[d.slice(5)])return FX[d.slice(5)];const p=easter(+d.slice(0,4));p.setDate(p.getDate()+1);return iso(p)==d?"Lunedì dell'Angelo":''};
+const off=d=>pd(d).getDay()==0?'domenica':hol(d);
+function forecast(){
+ if(!S.classes.length)return null;
+ const nd={};S.classes.forEach(c=>nd[c.id]={a:c.minA,s:c.year>=2?c.minS:0});
+ let d=pd(S.classes.map(c=>c.start).filter(Boolean).sort()[0]||iso(new Date()));
+ const done=()=>S.classes.every(c=>nd[c.id].a<=0&&nd[c.id].s<=0);
+ for(let i=0;i<1500;i++,d.setDate(d.getDate()+1)){
+  const ds=iso(d),w=d.getDay();if(off(ds)||absent(ds))continue;
+  if(S.reg[ds]){S.classes.forEach(c=>{const h=sg(c,ds);if(h>0){const n=nd[c.id],k=md(c,ds)=='s'?'s':'a';n[k]=Math.max(0,n[k]-h)}})}
+  else{let rem=cap(ds);const act=S.classes.filter(c=>ds>=c.start),st=act.filter(c=>c.year>=2&&nd[c.id].s>0&&rem>=c.sh);
+   if(st.length)st.forEach(c=>{const n=nd[c.id];if(rem<c.sh)return;const h=Math.min(rem,Math.max(n.s,c.sh));n.s=Math.max(0,n.s-h);rem-=h});
+   else if(w>=1&&w<=5)act.forEach(c=>{const n=nd[c.id],h=Math.min(cls(c,ds),rem,n.a);if(h>0){n.a-=h;rem-=h}})}
+  if(done())return ds;
+ }
+ return null}
+const R=()=>{document.getElementById('app').innerHTML=!user?vLogin():head()+(tab=='reg'?vReg():tab=='sum'?vSum():vSet());msg=''};
+const head=()=>`<div class="c r" style="padding:8px 12px;margin-bottom:10px"><span class=mu>Connesso come</span><b class=g style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(user.email||'')}</b><button onclick="cloud.out()">Esci</button></div><div class=tabs>${[['reg','Registro'],['sum','Riepilogo'],['set','Impostazioni']].map(t=>`<button class="${tab==t[0]?'on':''}" onclick="tab='${t[0]}';R()">${t[1]}</button>`).join('')}</div>${msg?`<div class="b wa">${msg}</div>`:''}`;
+function mv(n){const d=pd(cur);for(let i=0;i<10;i++){d.setDate(d.getDate()+n);if(!off(iso(d)))break}cur=iso(d);R()}
+function vReg(){
+ if(!S.classes.length)return`<div class=c>Prima aggiungi le tue classi in <b>Impostazioni</b>.</div>`;
+ const ab=absent(cur),cp=cap(cur),u=used(cur),bl=ab||cp==0,anySt=S.classes.some(c=>md(c,cur)=='s');
+ let h=`<div class=r style="margin-bottom:8px"><button onclick="mv(-1)">‹</button><input class=g type=date value="${cur}" onchange="cur=this.value||cur;R()"><button onclick="mv(1)">›</button></div><div class=mu style="margin-bottom:8px">${pd(cur).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</div>`;
+ if(off(cur))return h+`<div class="b wa">Giorno non lavorativo (${off(cur)}): niente da registrare. Usa ‹ › per cambiare giorno.</div>`;
+ h+=`<div class=r style="margin-bottom:10px">${[['','Presente'],['ferie','Ferie'],['malattia','Malattia']].map(x=>`<button class="g ${(ab||'')==x[0]?'on':''}" onclick="setAbs('${x[0]}')">${x[1]}</button>`).join('')}</div>`;
+ if(ab)h+=`<div class="b er">In ${ab}: ore impegno 0, non puoi firmare in nessuna classe.</div>`;
+ else if(cp==0)h+=`<div class="b wa">Nessun contratto con ore previste in questa data: non puoi firmare.</div>`;
+ else h+=`<div class="b ${u>=cp?'ok':'wa'}">Ore tutor del giorno: ${u} / ${cp} (massimo da contratto)</div>`;
+ if(anySt&&!ab)h+=`<div class="b wa">C'è uno stage: non puoi firmare ore di aula in altre classi.</div>`;
+ S.classes.forEach(c=>{const m=md(c,cur),v=sg(c,cur),ch=cls(c,cur),room=cp-oth(c,cur),mx=Math.max(0,m=='a'?Math.min(ch,room):room),nst=cur<c.start;
+  h+=`<div class=c><h3>${esc(c.name)} <span class=tag>${c.year}° anno</span></h3><div class=r style="margin-top:6px">${[['','—'],['a','Aula'],['s','Stage']].filter(x=>x[0]!='s'||c.year>=2).map(x=>`<button class="g ${m==x[0]?'on':''}" ${bl||nst||(x[0]=='a'&&anySt)?'disabled':''} onclick="setMode('${c.id}','${x[0]}')">${x[1]}</button>`).join('')}</div>`;
+  if(nst)h+=`<div class=mu style="margin-top:6px">Classe non ancora iniziata</div>`;
+  else if(m)h+=`<div class=r style="margin-top:8px">${m=='a'?`<label class=mu>Ore classe <input type=number step=0.5 min=0 value="${ch}" onchange="sch('${c.id}',this.value)"></label>`:''}<label class=mu>Ore tutor <input type=number step=0.5 min=0 value="${v}" ${bl?'disabled':''} onchange="sgn('${c.id}',this.value)"></label></div><div class=mu style="margin-top:4px">${m=='s'?'Stage: minimo '+c.sh+' h, massimo '+mx+' h':'Massimo firmabile: '+mx+' h'}</div>`;
+  h+=`</div>`});
+ return h}
+function setAbs(t){if(t&&used(cur)>0&&!confirm('Le ore già firmate in questo giorno verranno azzerate. Continuare?'))return;if(t){S.abs[cur]=t;delete S.reg[cur]}else delete S.abs[cur];save();R()}
+function setMode(id,m){const c=S.classes.find(x=>x.id==id),day=S.reg[cur]=S.reg[cur]||{};
+ if(m=='s'){const oa=S.classes.filter(x=>x.id!=id&&day[x.id]&&day[x.id].m=='a');
+  if(oa.length&&!confirm('Con lo stage non puoi firmare altre aule: le ore di aula di oggi verranno azzerate. Continuare?'))return R();
+  oa.forEach(x=>delete day[x.id]);const room=cap(cur)-oth(c,cur);
+  if(room<c.sh){msg='Lo stage richiede almeno '+c.sh+' h ma oggi ne restano '+Math.max(0,room)+' (contratto).';}else day[id]={m:'s',h:c.sh}}
+ else if(m=='a'){if(S.classes.some(x=>x.id!=id&&day[x.id]&&day[x.id].m=='s')){msg='Un\'altra classe ha lo stage: non puoi firmare aula.';return R()}day[id]={m:'a',h:Math.max(0,Math.min(cls(c,cur),cap(cur)-oth(c,cur)))}}
+ else delete day[id];
+ if(!Object.keys(day).length)delete S.reg[cur];save();R()}
+function sch(id,v){const c=S.classes.find(x=>x.id==id);v=Math.max(0,+v||0);S.ch[cur+'|'+id]=v;const r=rg(c,cur);if(r.m=='a'&&r.h>v)r.h=v;save();R()}
+function sgn(id,v){const c=S.classes.find(x=>x.id==id),r=rg(c,cur),room=cap(cur)-oth(c,cur);let n=Math.max(0,+v||0);
+ const mx=Math.max(0,r.m=='a'?Math.min(cls(c,cur),room):room),mn=r.m=='s'?c.sh:0;
+ if(n>mx){n=mx;msg='Ridotto a '+mx+' h: limite di classe o del contratto giornaliero.'}
+ if(n<mn){n=Math.min(mn,mx);msg='In stage il minimo è '+mn+' h.'}
+ r.h=n;save();R()}
+function vSum(){
+ if(!S.classes.length)return`<div class=c>Nessuna classe inserita.</div>`;
+ let A=0,T=0,N=0;S.classes.forEach(c=>{A+=tot(c,false);T+=tot(c,true);N+=c.minA+(c.year>=2?c.minS:0)});
+ const f=forecast(),td=iso(new Date()),fe=Object.keys(S.abs).filter(d=>S.abs[d]=='ferie'&&d<=td).length;
+ return`<div class=c><h3>Ore tutor già firmate</h3><div class=r style="margin-top:6px"><div class=g><div class=mu>In aula</div><b style="font-size:22px">${A} h</b></div><div class=g><div class=mu>In stage</div><b style="font-size:22px">${T} h</b></div><div class=g><div class=mu>Totale</div><b style="font-size:22px">${A+T} h</b></div></div></div>
+<div class="b ${f?'ok':'er'}">${f?'Con il massimo impegno ogni giorno, le ore minime totali (aula + stage: '+N+' h) saranno completate il <b>'+fmt(f)+'</b>.':'Con i contratti inseriti le ore minime totali ('+N+' h) non sono raggiungibili: controlla i periodi di contratto.'}</div>
+<div class=c><h3>Ferie già prese</h3><b style="font-size:22px">${fe} giorni</b></div>
+<p class=mu>Previsione dal primo giorno di scuola: aula dal lunedì al venerdì, stage dal lunedì al sabato, senza domeniche e festività. Nei giorni già compilati nel Registro usa i dati reali.</p>`}
+const inp=(arr,i,k,t='text',x='')=>`<input type=${t} ${x} value="${esc(S[arr][i][k])}" onchange="upd('${arr}',${i},'${k}',${t=='number'?'+this.value':'this.value'})">`;
+function upd(a,i,k,v){S[a][i][k]=v;save();R()}
+function del(a,i){if(a=='classes'){const id=S.classes[i].id;Object.keys(S.reg).forEach(d=>{delete S.reg[d][id];if(!Object.keys(S.reg[d]).length)delete S.reg[d]})}S[a].splice(i,1);save();R()}
+const t0=()=>iso(new Date());
+function addC(){const y=+document.getElementById('ny').value,n=document.getElementById('nn').value.trim(),s=document.getElementById('ns').value;if(!n||!s){msg='Inserisci nome classe e data di inizio.';return R()}
+ S.classes.push({id:uid(),year:y,name:n,start:s,minA:y==1?300:200,minS:y>=2?200:0,sh:8});save();R()}
+function addP(){const d=new Date(),a=new Date(d.getFullYear(),d.getMonth(),1,12),b=new Date(d.getFullYear(),d.getMonth()+1,0,12);S.contract.push({from:iso(a),to:iso(b),max:6});save();R()}
+function vSet(){
+ let h=`<h2>Classi e annualità</h2>`;
+ S.classes.forEach((c,i)=>{const y2=c.year>=2;
+  h+=`<div class=c><div class=r><div class=g>${inp('classes',i,'name')}</div><span class=tag>${c.year}° anno</span><button class=dl onclick="del('classes',${i})">✕</button></div>
+  <div class=r style="margin-top:8px"><label class=mu>Inizio ${inp('classes',i,'start','date')}</label></div>
+  <div class=r style="margin-top:8px"><label class=mu>Min. ore aula ${inp('classes',i,'minA','number','min=0')}</label>${y2?`<label class=mu>Min. ore stage ${inp('classes',i,'minS','number','min=0')}</label>`:''}</div>`+(y2?`<div class=r style="margin-top:8px"><label class=mu>Ore tutor minime per giorno di stage ${inp('classes',i,'sh','number','min=0 step=0.5')}</label></div><div class=mu style="margin-top:4px">Aula: lunedì-venerdì. Stage: lunedì-sabato.</div>`:'')+`</div>`});
+ h+=`<div class=c><div class=r><select id=ny><option value=1>1° anno</option><option value=2>2° anno</option><option value=3>3° anno</option></select><input id=nn class=g placeholder="Nome classe" style="min-width:120px"></div><div class=r style="margin-top:8px"><label class=mu>Inizio <input id=ns type=date value="${t0()}"></label><button class=pr onclick="addC()">Aggiungi classe</button></div></div>`;
+ h+=`<h2>Ore massime giornaliere da contratto</h2>`;
+ S.contract.forEach((p,i)=>{h+=`<div class="c r">${inp('contract',i,'from','date')}<span>→</span>${inp('contract',i,'to','date')}${inp('contract',i,'max','number','min=0 step=0.5')}<span class=mu>h/giorno</span><button class=dl onclick="del('contract',${i})">✕</button></div>`});
+ h+=`<button onclick="addP()">+ Periodo contratto</button><h2>Calendario</h2><div class="c r"><span>Ore standard giornaliere di aula (lun-ven)</span><input type=number min=0 step=0.5 value="${S.defH}" onchange="S.defH=Math.max(0,+this.value||0);save();R()"></div><div class=mu>Nel Registro, per ogni giorno scegli Presente/Ferie/Malattia e, per ogni classe, Aula o Stage con le ore tutor. Le ore di una classe in un singolo giorno si cambiano lì. Domeniche e festività nazionali sono escluse dal calendario.</div>
+ <h2>Account</h2><div class='c r'><span class=g>${esc(user.email||'')}</span><button onclick="cloud.out()">Esci</button></div><h2>Backup dati</h2><div class=c><textarea id=bk placeholder="Qui compare il backup. Incolla un backup per ripristinarlo.">${esc(bk)}</textarea><div class=r style="margin-top:8px"><button onclick="bk=JSON.stringify(S);R()">Esporta</button><button onclick="imp()">Importa</button></div><div class=mu style="margin-top:6px">I dati sono salvati online nel tuo account: ogni collega vede solo le proprie classi.</div></div>`;
+ return h}
+function imp(){try{const o=JSON.parse(document.getElementById('bk').value);if(!o.classes)throw 0;S=norm(o);save();bk='';msg='Backup importato.'}catch(e){msg='Backup non valido.'}R()}
+const vLogin=()=>`<div class=c><h3>Ore Tutor</h3><div class=mu style="margin-bottom:10px">Accedi per vedere le tue classi. Ogni utente ha il proprio archivio.</div>${msg?`<div class="b er">${msg}</div>`:''}<button class=pr style="width:100%" onclick="cloud.google()">Accedi con Google</button><div class=mu style="margin:12px 0 6px">oppure con email</div><input id=em type=email placeholder="Email" style="width:100%;margin-bottom:6px"><input id=pw type=password placeholder="Password (min. 6 caratteri)" style="width:100%;margin-bottom:8px"><div class=r><button class=g onclick="cloud.email(0)">Accedi</button><button class=g onclick="cloud.email(1)">Registrati</button></div><button style="margin-top:8px;width:100%" onclick="cloud.reset()">Password dimenticata</button></div>`;
+window.setState=o=>{S=norm(o);tab=S.classes.length?'reg':'set'};
+window.setUser=u=>{user=u;R()};window.showMsg=m=>{msg=m;R()};
+R();
+</script>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithPopup,GoogleAuthProvider,signInWithEmailAndPassword,createUserWithEmailAndPassword,signOut,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,doc,getDoc,setDoc} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+// === INCOLLA QUI LA CONFIGURAZIONE DEL TUO NUOVO PROGETTO FIREBASE ===
+const firebaseConfig={
+  apiKey: "AIzaSyCeMSy_Kon13kvQhXqOPlgFrumqFxdKGeI",
+  authDomain: "ore-tutor.firebaseapp.com",
+  projectId: "ore-tutor",
+  storageBucket: "ore-tutor.firebasestorage.app",
+  messagingSenderId: "643028200007",
+  appId: "1:643028200007:web:83cc4c55c5faae07da9f62"
+};
+// =====================================================================
+const COL="tutor_users";
+if(firebaseConfig.apiKey==="INCOLLA"){showMsg("Configurazione Firebase mancante: apri il file e incolla firebaseConfig.")}
+else{
+const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);let t=null,uid=null;
+const err=e=>showMsg("Errore: "+(e.code||e.message));
+window.cloudSave=txt=>{clearTimeout(t);t=setTimeout(()=>setDoc(doc(db,COL,uid),{data:txt,updated:Date.now()}).catch(()=>showMsg("Salvataggio non riuscito: controlla la connessione.")),600)};
+window.cloud={
+ google:()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(err),
+ email:m=>{const e=document.getElementById('em').value.trim(),p=document.getElementById('pw').value;(m?createUserWithEmailAndPassword:signInWithEmailAndPassword)(auth,e,p).catch(err)},
+ reset:()=>{const e=document.getElementById('em').value.trim();if(!e)return showMsg("Inserisci prima l'email.");sendPasswordResetEmail(auth,e).then(()=>showMsg("Email di reset inviata.")).catch(err)},
+ out:()=>signOut(auth)};
+onAuthStateChanged(auth,async u=>{
+ if(!u){uid=null;setUser(null);return}
+ try{const d=await getDoc(doc(db,COL,u.uid));uid=u.uid;setState(d.exists()?JSON.parse(d.data().data):{});setUser(u)}
+ catch(e){showMsg("Impossibile caricare i dati: controlla le regole di sicurezza Firestore.")}});
+}
+</script></body></html>
